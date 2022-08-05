@@ -14,6 +14,10 @@ import xml.etree.ElementTree as ElementTree
 # Anlage_3_Datenformate_3.6.pdf - "Bank To Customer Account Report", 7.2.3
 
 
+class ParseError(Exception):
+    pass
+
+
 def strip_ns(tag):
     m = re.match(r"^(?:{([^}]+?)})?(.+)$", tag)
     assert m
@@ -22,9 +26,9 @@ def strip_ns(tag):
 
 def parse_date_or_datetime(tree: ElementTree):
     if len(tree) != 1:
-        sys.exit("Maximum number of children in Dt is 1")
+        raise ParseError("Maximum number of children in Dt is 1")
     if strip_ns(tree[0].tag) != "Dt" and strip_ns(tree[0].tag) != "DtTm":
-        sys.exit("Child of 'Dt' must be 'Dt' or 'DtTm'")
+        raise ParseError("Child of 'Dt' must be 'Dt' or 'DtTm'")
     return datetime.fromisoformat(tree[0].text)
 
 
@@ -47,7 +51,7 @@ class MessagePagination:
             elif strip_ns(child.tag) == "LastPgInd":
                 last_page_indication = "true" in child.text.lower()
             else:
-                sys.exit(f"Unknown child '{child.tag} in MessagePagination")
+                raise ParseError(f"Unknown child '{child.tag} in MessagePagination")
         return MessagePagination(page_number, last_page_indication)
 
     def to_dict_tree(self):
@@ -76,7 +80,7 @@ class GroupHeader:
             elif strip_ns(child.tag) == "MsgPgntn":
                 message_pagination = MessagePagination.parse_xml(child)
             else:
-                sys.exit(f"Unknown child '{child.tag} in GroupHeader")
+                raise ParseError(f"Unknown child '{child.tag} in GroupHeader")
         return GroupHeader(message_identification, creation_time, message_pagination)
 
     def to_dict_tree(self):
@@ -109,7 +113,7 @@ class FinancialInstitutionIdentification:
             elif strip_ns(child.tag) == "Othr":
                 other = parse_generic_kv_list(child)
             else:
-                sys.exit(
+                raise ParseError(
                     f"Unknown tag '{strip_ns(child.tag)}' in FinancialInstitutionIdentification"
                 )
         return FinancialInstitutionIdentification(bicfi, name, other)
@@ -135,7 +139,7 @@ class Servicer:
                     FinancialInstitutionIdentification.parse_xml(child)
                 )
             else:
-                sys.exit(f"Unknown tag '{strip_ns(child.tag)}' in Servicer")
+                raise ParseError(f"Unknown tag '{strip_ns(child.tag)}' in Servicer")
         return Servicer(financial_institution_identification)
 
     def to_dict_tree(self):
@@ -167,7 +171,7 @@ class Account:
             elif strip_ns(child.tag) == "Svcr":
                 servicer = Servicer.parse_xml(child)
             else:
-                sys.exit(f"Unknown tag '{strip_ns(child.tag)}' in Account")
+                raise ParseError(f"Unknown tag '{strip_ns(child.tag)}' in Account")
         return Account(iban, currency, servicer)
 
     def to_dict_tree(self):
@@ -239,7 +243,7 @@ class Balance:
             elif strip_ns(child.tag) == "Dt":
                 date = parse_date_or_datetime(child)
             else:
-                sys.exit(f"Unknown tag '{strip_ns(child.tag)}' in Balance")
+                raise ParseError(f"Unknown tag '{strip_ns(child.tag)}' in Balance")
         return Balance(balance_type, amount, credit_debit, date)
 
     def to_dict_tree(self):
@@ -274,7 +278,9 @@ class ProprietaryReference:
             elif strip_ns(child.tag) == "Ref":
                 reference = child.text
             else:
-                sys.exit(f"Unknown tag '{strip_ns(child.tag)}' in ProprietaryReference")
+                raise ParseError(
+                    f"Unknown tag '{strip_ns(child.tag)}' in ProprietaryReference"
+                )
         return ProprietaryReference(reference_type, reference)
 
     def to_dict_tree(self):
@@ -300,7 +306,7 @@ class References:
             elif strip_ns(child.tag) == "Prtry":
                 proprietary_reference.append(ProprietaryReference.parse_xml(child))
             else:
-                sys.exit(f"Unknown tag '{strip_ns(child.tag)}' in References")
+                raise ParseError(f"Unknown tag '{strip_ns(child.tag)}' in References")
         return References(
             end_to_end_identification, mandate_identification, proprietary_reference
         )
@@ -334,7 +340,7 @@ class ProprietaryBankTransactionCode:  # only supports Proprietary (Prtry)
             elif strip_ns(child.tag) == "Issr":
                 issuer = child.text
             else:
-                sys.exit(
+                raise ParseError(
                     f"Unknown tag '{strip_ns(child.tag)}' in ProprietaryBankTransactionCode"
                 )
         return ProprietaryBankTransactionCode(code, issuer)
@@ -351,7 +357,7 @@ def parse_bank_transaction_code_from_xml(tree: ElementTree):
     if strip_ns(tree[0].tag) == "Prtry":
         return ProprietaryBankTransactionCode.parse_xml(tree[0])
     else:
-        sys.exit(f"Unknown tag '{strip_ns(child.tag)}' in BankTransactionCode")
+        raise ParseError(f"Unknown tag '{strip_ns(tree.tag)}' in BankTransactionCode")
 
 
 @dataclass
@@ -366,7 +372,7 @@ class PrivateIdentification:
             if strip_ns(child.tag) == "Othr":
                 other = parse_generic_kv_list(child)
             else:
-                sys.exit(
+                raise ParseError(
                     f"Unknown tag '{strip_ns(child.tag)}' in PrivateIdentification"
                 )
         return PrivateIdentification(other)
@@ -384,7 +390,7 @@ def parse_identification_from_xml(tree: ElementTree):
     if strip_ns(tree[0].tag) == "PrvtId":
         return PrivateIdentification.parse_xml(tree[0])
     else:
-        sys.exit(f"Unknown tag '{strip_ns(child.tag)}' in Identification")
+        raise ParseError(f"Unknown tag '{strip_ns(tree.tag)}' in Identification")
 
 
 @dataclass
@@ -402,7 +408,9 @@ class PartyIdentification:
             elif strip_ns(child.tag) == "Id":
                 identification = parse_identification_from_xml(child)
             else:
-                sys.exit(f"Unknown tag '{strip_ns(child.tag)}' in PartyIdentification")
+                raise ParseError(
+                    f"Unknown tag '{strip_ns(child.tag)}' in PartyIdentification"
+                )
         return PartyIdentification(name, identification)
 
     def to_dict_tree(self):
@@ -437,7 +445,7 @@ class CashAccount:
                 assert strip_ns(child[0].tag) == "IBAN"
                 iban = child[0].text
             else:
-                sys.exit(f"Unknown tag '{strip_ns(child.tag)}' in CashAccount")
+                raise ParseError(f"Unknown tag '{strip_ns(child.tag)}' in CashAccount")
         return CashAccount(iban)
 
     def to_dict_tree(self):
@@ -467,7 +475,9 @@ class RelatedParties:
             elif strip_ns(child.tag) == "CdtrAcct":
                 creditor_account = CashAccount.parse_xml(child)
             else:
-                sys.exit(f"Unknown tag '{strip_ns(child.tag)}' in RelatedParties")
+                raise ParseError(
+                    f"Unknown tag '{strip_ns(child.tag)}' in RelatedParties"
+                )
         return RelatedParties(debtor, debtor_account, creditor, creditor_account)
 
     def to_dict_tree(self):
@@ -500,7 +510,9 @@ class RelatedAgents:
                 assert len(child[0]) == 1 and strip_ns(child[0].tag) == "FinInstnId"
                 creditor_agent = FinancialInstitutionIdentification.parse_xml(child[0])
             else:
-                sys.exit(f"Unknown tag '{strip_ns(child.tag)}' in RelatedAgents")
+                raise ParseError(
+                    f"Unknown tag '{strip_ns(child.tag)}' in RelatedAgents"
+                )
         return RelatedAgents(debtor_agent, creditor_agent)
 
     def to_dict_tree(self):
@@ -522,7 +534,7 @@ class RelatedRemittanceInformation:
             if strip_ns(child.tag) == "Ustrd":
                 unstructured = child.text
             else:
-                sys.exit(
+                raise ParseError(
                     f"Unknown tag '{strip_ns(child.tag)}' in RelatedRemittanceInformation"
                 )
         return RelatedRemittanceInformation(unstructured)
@@ -560,7 +572,9 @@ class TransactionDetails:
                     RelatedRemittanceInformation.parse_xml(child)
                 )
             else:
-                sys.exit(f"Unknown tag '{strip_ns(child.tag)}' in TransactionDetails")
+                raise ParseError(
+                    f"Unknown tag '{strip_ns(child.tag)}' in TransactionDetails"
+                )
         return TransactionDetails(
             references,
             bank_transaction_code,
@@ -598,7 +612,7 @@ class EntryDetails:
             if strip_ns(child.tag) == "TxDtls":
                 transaction_details = TransactionDetails.parse_xml(child)
             else:
-                sys.exit(f"Unknown tag '{strip_ns(child.tag)}' in EntryDetails")
+                raise ParseError(f"Unknown tag '{strip_ns(child.tag)}' in EntryDetails")
         return EntryDetails(transaction_details)
 
     def to_dict_tree(self):
@@ -649,7 +663,7 @@ class Entry:
                 # I don't think the spec mentions it either
                 pass
             else:
-                sys.exit(f"Unknown tag '{strip_ns(child.tag)}' in Entry")
+                raise ParseError(f"Unknown tag '{strip_ns(child.tag)}' in Entry")
         return Entry(
             amount,
             credit_debit,
@@ -705,7 +719,7 @@ class Report:
             elif strip_ns(child.tag) == "Ntry":
                 entries.append(Entry.parse_xml(child))
             else:
-                sys.exit(f"Unknown tag '{strip_ns(child.tag)}' in Report")
+                raise ParseError(f"Unknown tag '{strip_ns(child.tag)}' in Report")
         return Report(
             identification,
             eletronic_sequence_number,
@@ -743,7 +757,9 @@ class BankToCustomerAccountReport:
             elif strip_ns(child.tag) == "Rpt":
                 reports.append(Report.parse_xml(child))
             else:
-                sys.exit(f"Unknown tag '{strip_ns(child.tag)}' in BkToCstmrAcctRpt")
+                raise ParseError(
+                    f"Unknown tag '{strip_ns(child.tag)}' in BkToCstmrAcctRpt"
+                )
         return BankToCustomerAccountReport(group_header, reports)
 
     def to_dict_tree(self):
@@ -757,10 +773,10 @@ def parse_etree(tree: ElementTree) -> BankToCustomerAccountReport:
     root = tree.getroot()
 
     if strip_ns(root.tag) != "Document":
-        sys.exit("Root must be 'Document'")
+        raise ParseError("Root must be 'Document'")
 
     if len(root) != 1 or strip_ns(root[0].tag) != "BkToCstmrAcctRpt":
-        sys.exit("Document must be BkToCstmrAcctRpt")
+        raise ParseError("Document must be BkToCstmrAcctRpt")
 
     return BankToCustomerAccountReport.parse_xml(root[0])
 
