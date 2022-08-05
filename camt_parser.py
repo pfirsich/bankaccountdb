@@ -18,9 +18,14 @@ class ParseError(Exception):
     pass
 
 
+def validate(cond, message):
+    if not cond:
+        raise ParseError(message)
+
+
 def strip_ns(tag):
     m = re.match(r"^(?:{([^}]+?)})?(.+)$", tag)
-    assert m
+    validate(m, f"Tag '{tag}' does not match regex")
     return m.group(2)
 
 
@@ -164,7 +169,7 @@ class Account:
         servicer = None
         for child in tree:
             if strip_ns(child.tag) == "Id":
-                assert strip_ns(child[0].tag) == "IBAN"
+                validate(strip_ns(child[0].tag) == "IBAN", "Id needs to be IBAN")
                 iban = child[0].text
             elif strip_ns(child.tag) == "Ccy":
                 currency = child.text
@@ -193,11 +198,12 @@ class BalanceType(Enum):
 
     @staticmethod
     def parse_xml(tree: ElementTree):
-        assert (
+        validate(
             len(tree) == 1
             and strip_ns(tree[0].tag) == "CdOrPrtry"
             and len(tree[0]) == 1
-            and strip_ns(tree[0][0].tag) == "Cd"
+            and strip_ns(tree[0][0].tag) == "Cd",
+            "BalanceType needs to be Cd",
         )
         return BalanceType(tree[0][0].text)
 
@@ -353,7 +359,7 @@ BankTransactionCode = ProprietaryBankTransactionCode  # | DomainBankTransactionC
 
 
 def parse_bank_transaction_code_from_xml(tree: ElementTree):
-    assert len(tree) == 1
+    validate(len(tree) == 1, "BankTransactionCode must only contain one child")
     if strip_ns(tree[0].tag) == "Prtry":
         return ProprietaryBankTransactionCode.parse_xml(tree[0])
     else:
@@ -386,7 +392,7 @@ Identification = PrivateIdentification  # (PrvtId) | OrganisationIdentification 
 
 
 def parse_identification_from_xml(tree: ElementTree):
-    assert len(tree) == 1
+    validate(len(tree) == 1, "Identification must only contain one child")
     if strip_ns(tree[0].tag) == "PrvtId":
         return PrivateIdentification.parse_xml(tree[0])
     else:
@@ -504,10 +510,16 @@ class RelatedAgents:
         creditor_agent = None
         for child in tree:
             if strip_ns(child.tag) == "DbtrAgt":
-                assert len(child[0]) == 1 and strip_ns(child[0].tag) == "FinInstnId"
+                validate(
+                    len(child) == 1 and strip_ns(child[0].tag) == "FinInstnId",
+                    "DbtrAgt must be FinInstId",
+                )
                 debtor_agent = FinancialInstitutionIdentification.parse_xml(child[0])
             elif strip_ns(child.tag) == "CdtrAgt":
-                assert len(child[0]) == 1 and strip_ns(child[0].tag) == "FinInstnId"
+                validate(
+                    len(child) == 1 and strip_ns(child[0].tag) == "FinInstnId",
+                    "CdtrAgt must be FinInstId",
+                )
                 creditor_agent = FinancialInstitutionIdentification.parse_xml(child[0])
             else:
                 raise ParseError(
