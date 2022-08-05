@@ -9,7 +9,8 @@ import re
 import sys
 import xml.etree.ElementTree as ElementTree
 
-# https://www.ebics.de/de/datenformate
+# This module only parses camt.052 documents ("Bank to Customer Account Report")
+# Specification (german, sorry): https://www.ebics.de/de/datenformate
 # Anlage_3_Datenformate_3.6.pdf - "Bank To Customer Account Report", 7.2.3
 
 
@@ -122,7 +123,7 @@ class FinancialInstitutionIdentification:
 
 
 @dataclass
-class Servicer:  # FinInstnId
+class Servicer:
     financial_institution_identification: FinancialInstitutionIdentification  # FinInstnId
 
     @staticmethod
@@ -752,22 +753,32 @@ class BankToCustomerAccountReport:
         }
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("file")
-    args = parser.parse_args()
-
-    tree = ElementTree.parse(args.file)
+def parse_etree(tree: ElementTree) -> BankToCustomerAccountReport:
     root = tree.getroot()
 
     if strip_ns(root.tag) != "Document":
         sys.exit("Root must be 'Document'")
 
-    # Bank to Customer Account Report (camt.052)
     if len(root) != 1 or strip_ns(root[0].tag) != "BkToCstmrAcctRpt":
         sys.exit("Document must be BkToCstmrAcctRpt")
 
-    report = BankToCustomerAccountReport.parse_xml(root[0])
+    return BankToCustomerAccountReport.parse_xml(root[0])
+
+
+def parse_file(path: str) -> BankToCustomerAccountReport:
+    return parse_etree(ElementTree.parse(path))
+
+
+def parse_string(data: str) -> BankToCustomerAccountReport:
+    return parse_etree(ElementTree.fromstring(data))
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("file")
+    args = parser.parse_args()
+
+    report = parse_file(args.file)
     dict_tree = report.to_dict_tree()
     print(json.dumps(dict_tree, indent=4))
 
