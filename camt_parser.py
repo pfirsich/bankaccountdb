@@ -431,7 +431,7 @@ class PartyIdentification:
 PartyChoice = PartyIdentification | FinancialInstitutionIdentification
 
 # This can't be right
-def parse_partchoice_from_xml(tree: ElementTree):
+def parse_partychoice_from_xml(tree: ElementTree):
     if len(tree) == 1 and strip_ns(tree[0].tag) == "FinInstnId":
         return FinancialInstitutionIdentification.parse_xml(tree[0])
     else:
@@ -495,6 +495,7 @@ class RelatedParties:
     debtor_account: Optional[CashAccount]  # DbtrAcct
     creditor: Optional[PartyChoice]  # Cdtr
     creditor_account: Optional[CashAccount]  # CdtrAcct
+    ultimate_creditor: Optional[PartyChoice]  # UltmtCdtr
 
     @staticmethod
     def parse_xml(tree: ElementTree):
@@ -502,20 +503,25 @@ class RelatedParties:
         debtor_account = None
         creditor = None
         creditor_account = None
+        ultimate_creditor = None
         for child in tree:
             if strip_ns(child.tag) == "Dbtr":
-                debtor = parse_partchoice_from_xml(child)
+                debtor = parse_partychoice_from_xml(child)
             elif strip_ns(child.tag) == "DbtrAcct":
                 debtor_account = CashAccount.parse_xml(child)
             elif strip_ns(child.tag) == "Cdtr":
-                creditor = parse_partchoice_from_xml(child)
+                creditor = parse_partychoice_from_xml(child)
             elif strip_ns(child.tag) == "CdtrAcct":
                 creditor_account = CashAccount.parse_xml(child)
+            elif strip_ns(child.tag) == "UltmtCdtr":
+                ultimate_creditor = parse_partychoice_from_xml(child)
             else:
                 raise ParseError(
                     f"Unknown tag '{strip_ns(child.tag)}' in RelatedParties"
                 )
-        return RelatedParties(debtor, debtor_account, creditor, creditor_account)
+        return RelatedParties(
+            debtor, debtor_account, creditor, creditor_account, ultimate_creditor
+        )
 
     def to_dict_tree(self):
         return {
@@ -526,6 +532,9 @@ class RelatedParties:
             "creditor": self.creditor.to_dict_tree() if self.creditor else None,
             "creditorAccount": self.creditor_account.to_dict_tree()
             if self.creditor_account
+            else None,
+            "ultimateCreditor": self.ultimate_creditor.to_dict_tree()
+            if self.ultimate_creditor
             else None,
         }
 
