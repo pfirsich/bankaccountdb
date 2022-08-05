@@ -574,6 +574,29 @@ class RelatedAgents:
         }
 
 
+# https://www.iso20022.org/catalogue-messages/additional-content-messages/external-code-sets
+# This site links 325 possible codes, which I will not all add here
+class ExternalPurposeCode(Enum):
+    Securities = "SECU"
+    CardGeneratedDirectDebit = "CGDD"
+    RecurringInstallmentPayment = "RINP"
+    IrrevocableDebitCardPayment = "IDCP"
+    SalaryPayment = "SALA"
+
+
+Purpose = ExternalPurposeCode | str
+
+
+def parse_purpose_from_xml(tree: ElementTree):
+    validate(len(tree) == 1, "Purpose must only contain one child")
+    if strip_ns(tree[0].tag) == "Cd":
+        return ExternalPurposeCode(tree[0].text)
+    elif strip_ns(tree[0].tag) == "Prtry":
+        return tree[0].text
+    else:
+        raise ParseError(f"Unknown tag '{strip_ns(tree[0].tag)}' in Purpose")
+
+
 # This this is actually HUGE
 @dataclass
 class RelatedRemittanceInformation:
@@ -601,6 +624,7 @@ class TransactionDetails:
     bank_transaction_code: Optional[BankTransactionCode]  # BkTxCd
     related_parties: Optional[RelatedParties]  # RltdPties
     related_agents: Optional[RelatedAgents]  # RltdAgts
+    purpose: Optional[Purpose]
     related_remittance_information: list[RelatedRemittanceInformation]  # RmtInf
 
     @staticmethod
@@ -608,7 +632,8 @@ class TransactionDetails:
         references = None
         bank_transaction_code = None
         related_parties = None
-        related_agent = None
+        related_agents = None
+        purpose = None
         related_remittance_information = []
         for child in tree:
             if strip_ns(child.tag) == "Refs":
@@ -619,6 +644,8 @@ class TransactionDetails:
                 related_parties = RelatedParties.parse_xml(child)
             elif strip_ns(child.tag) == "RltdAgts":
                 related_agents = RelatedAgents.parse_xml(child)
+            elif strip_ns(child.tag) == "Purp":
+                purpose = parse_purpose_from_xml(child)
             elif strip_ns(child.tag) == "RmtInf":
                 related_remittance_information.append(
                     RelatedRemittanceInformation.parse_xml(child)
@@ -632,6 +659,7 @@ class TransactionDetails:
             bank_transaction_code,
             related_parties,
             related_agents,
+            purpose,
             related_remittance_information,
         )
 
