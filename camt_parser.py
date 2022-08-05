@@ -438,24 +438,55 @@ def parse_partchoice_from_xml(tree: ElementTree):
         return PartyIdentification.parse_xml(tree)
 
 
-# This is much bigger in the reference, but I only add what I need
+class AccountIdentificationType(Enum):
+    Iban = "IBAN"
+    Other = "Othr"
+
+
+# This should actually be IBAN | Other, but both are strings, which would be weird to do in Python
 @dataclass
-class CashAccount:
-    iban: str  # Id/IBAN
+class AccountIdentification:
+    identification_type: AccountIdentificationType
+    identification: str
 
     @staticmethod
     def parse_xml(tree: ElementTree):
-        iban = None
+        validate(len(tree) == 1, "AccountIdentification must have one child")
+        if strip_ns(tree[0].tag) == "IBAN":
+            return AccountIdentification(AccountIdentificationType.Iban, tree[0].text)
+        elif strip_ns(tree[0].tag) == "Othr":
+            validate(
+                len(tree[0]) == 1 and strip_ns(tree[0][0].tag) == "Id",
+                "AccountIdentification 'Othr' must have one child 'Id'",
+            )
+            return AccountIdentification(
+                AccountIdentificationType.Other, tree[0][0].text
+            )
+        else:
+            raise ParseError(
+                f"Unknown tag '{strip_ns(tree[0].tag)}' in AccountIdentification"
+            )
+
+
+# This is much bigger in the reference, but I only add what I need
+@dataclass
+class CashAccount:
+    identification: AccountIdentification  # Id
+
+    @staticmethod
+    def parse_xml(tree: ElementTree):
+        identification = None
         for child in tree:
             if strip_ns(child.tag) == "Id":
-                assert strip_ns(child[0].tag) == "IBAN"
-                iban = child[0].text
+                identification = AccountIdentification.parse_xml(child)
             else:
                 raise ParseError(f"Unknown tag '{strip_ns(child.tag)}' in CashAccount")
-        return CashAccount(iban)
+        return CashAccount(identification)
 
     def to_dict_tree(self):
-        return {"iban": self.iban}
+        return {
+            self.identification.identification_type.name: self.identification.identification
+        }
 
 
 @dataclass
